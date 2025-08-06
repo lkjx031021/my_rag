@@ -10,6 +10,8 @@ import os
 from datetime import datetime
 import logging
 
+from sse_starlette.sse import EventSourceResponse
+
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,8 +38,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    history: List[ChatMessage] = []
-    system_prompt: Optional[str] = None
+
 
 class ChatResponse(BaseModel):
     response: str
@@ -91,6 +92,45 @@ class RAGSystem:
 rag_system = RAGSystem()
 
 from fastapi.responses import HTMLResponse
+
+from langchain_deepseek import ChatDeepSeek
+from langchain.callbacks import AsyncIteratorCallbackHandler
+from langchain.prompts import ChatPromptTemplate, PromptTemplate
+import asyncio
+from langchain.chains.llm import LLMChain
+from typing import Awaitable
+from langchain.callbacks.base import BaseCallbackHandler
+
+async def wrap_done(fn: Awaitable, event: asyncio.Event):
+    """Wrap an awaitable with a event to signal when it's done or an exception is raised."""
+
+    log_verbose = False
+
+    try:
+        await fn
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        msg = f"Caught exception: {e}"
+        print(f'{e.__class__.__name__}: {msg}',)
+    finally:
+        # Signal the aiter to stop.
+        event.set()
+
+class ConversationCallbackHandler(BaseCallbackHandler):
+    """Callback handler for streaming LLM responses."""
+
+    # def __init__(self, event: asyncio.Event):
+        # self.event = event
+
+    def on_llm_new_token(self, token: str, **kwargs) -> None:
+        print(token, end='', flush=True)
+
+    def on_llm_end(self, response, **kwargs) -> None:
+        print(type(response))
+        res = response.generations[0][0].text
+        print("get all response:", res)
+        return res
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -146,6 +186,48 @@ async def chat_stream(request: ChatRequest):
             "Content-Type": "text/event-stream",
         }
     )
+
+@app.post("/api/chat2")
+async def chat2_stream(query: ChatRequest):
+    """流式聊天接口"""
+    
+    print(query, query.message)
+    async def generate_stream():
+        try:
+            callback = AsyncIteratorCallbackHandler()
+            model = ChatDeepSeek(model="deepseek-chat", callbacks=[callback, ConversationCallbackHandler()])
+
+            prompt = PromptTemplate.from_template(
+                """
+                你是一个有用的助手。请回答以下问题：
+                {question}
+                你可以使用以下信息来回答问题：
+                {context}
+                """
+            )
+            
+            chain = LLMChain(prompt=prompt, llm=model)
+
+            task = asyncio.create_task(wrap_done(
+                chain.ainvoke({"question": "什么是Abandon", "context": "Abandon的含义是：不要放弃， keep on的含义是：放弃"}), 
+                callback.done))
+            async for token in callback.aiter():
+                print(token)
+                print("--------------------------------")
+                yield token
+            
+            await task
+
+
+        except Exception as e:
+            logger.error(f"Error in chat stream: {e}")
+            error_chunk = {
+                "type": "error",
+                "content": "抱歉，处理您的请求时出现了错误。"
+            }
+            yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
+    
+    return EventSourceResponse(generate_stream())
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
