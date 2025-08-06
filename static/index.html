@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chat System - 智能问答系统</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-brain"></i>
+                    <span>RAG Chat</span>
+                </div>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <button class="new-chat-btn" id="newChatBtn">
+                    <i class="fas fa-plus"></i>
+                    新对话
+                </button>
+                
+                <div class="chat-history" id="chatHistory">
+                    <!-- 聊天历史将在这里动态生成 -->
+                </div>
+                
+                <div class="sidebar-footer">
+                    <button class="upload-btn" id="uploadBtn">
+                        <i class="fas fa-upload"></i>
+                        上传文档
+                    </button>
+                    <input type="file" id="fileInput" accept=".pdf,.txt,.doc,.docx" style="display: none;">
+                </div>
+            </div>
+        </div>
+
+        <!-- 主聊天区域 -->
+        <div class="main-content">
+            <!-- 顶部导航栏 -->
+            <div class="top-bar">
+                <div class="top-bar-left">
+                    <button class="menu-btn" id="menuBtn">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="page-title">RAG 智能问答系统</h1>
+                </div>
+                <div class="top-bar-right">
+                    <button class="settings-btn" id="settingsBtn">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 聊天区域 -->
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <!-- 欢迎消息 -->
+                    <div class="message assistant-message">
+                        <div class="message-avatar">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                        <div class="message-content">
+                            <div class="message-text">
+                                <p>👋 你好！我是RAG智能问答系统，基于检索增强生成技术构建。</p>
+                                <p>我可以帮助你：</p>
+                                <ul>
+                                    <li>回答基于知识库的问题</li>
+                                    <li>提供准确的信息检索</li>
+                                    <li>支持文档上传和知识库扩展</li>
+                                </ul>
+                                <p>请开始提问吧！</p>
+                            </div>
+                            <div class="message-time">现在</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 输入区域 -->
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <div class="input-box">
+                            <textarea 
+                                id="messageInput" 
+                                placeholder="输入你的问题..." 
+                                rows="1"
+                                maxlength="2000"
+                            ></textarea>
+                            <div class="input-actions">
+                                <button class="action-btn" id="attachBtn" title="附加文件">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>
+                                <button class="send-btn" id="sendBtn" disabled>
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="input-footer">
+                            <span class="char-count" id="charCount">0/2000</span>
+                            <span class="model-info">RAG System v1.0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div class="loading-indicator" id="loadingIndicator" style="display: none;">
+        <div class="loading-dots">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+        <span>正在思考...</span>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>设置</h3>
+                <button class="modal-close" id="settingsModalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-item">
+                    <label>系统提示词</label>
+                    <textarea id="systemPrompt" placeholder="设置系统提示词...">你是一个专业的AI助手，基于RAG技术为用户提供准确、有用的回答。</textarea>
+                </div>
+                <div class="setting-item">
+                    <label>流式响应</label>
+                    <label class="switch">
+                        <input type="checkbox" id="streamingToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html> 
