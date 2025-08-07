@@ -120,9 +120,12 @@ body {
 .sidebar-footer {
     padding-top: 20px;
     border-top: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.upload-btn {
+.upload-btn, .logout-btn {
     background: #333;
     color: #fff;
     border: none;
@@ -137,9 +140,17 @@ body {
     transition: background-color 0.2s;
 }
 
-.upload-btn:hover {
+.upload-btn:hover, .logout-btn:hover {
     background: #444;
 }
+
+.logout-btn {
+    background: #c81e1e;
+}
+.logout-btn:hover {
+    background: #a01818;
+}
+
 
 /* 主内容区域 */
 .main-content {
@@ -163,6 +174,18 @@ body {
     display: flex;
     align-items: center;
     gap: 16px;
+}
+
+.top-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.current-user {
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
 }
 
 .menu-btn {
@@ -431,11 +454,12 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.6);
     display: none;
     align-items: center;
     justify-content: center;
     z-index: 2000;
+    backdrop-filter: blur(5px);
 }
 
 .modal.show {
@@ -446,11 +470,18 @@ body {
     background: #fff;
     border-radius: 12px;
     width: 90%;
-    max-width: 500px;
+    max-width: 400px; /* 调整登录框宽度 */
     max-height: 80vh;
     overflow-y: auto;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    animation: scaleIn 0.3s ease-out;
 }
+
+@keyframes scaleIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 
 .modal-header {
     padding: 20px 24px;
@@ -483,6 +514,59 @@ body {
 .modal-body {
     padding: 24px;
 }
+
+/* 登录表单样式 */
+#loginForm .form-group {
+    margin-bottom: 16px;
+}
+
+#loginForm label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #374151;
+}
+
+#loginForm input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+#loginForm input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.error-message {
+    color: #dc2626;
+    font-size: 14px;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
 
 .setting-item {
     margin-bottom: 20px;
@@ -665,3 +749,226 @@ input:checked + .slider:before {
     color: #9ca3af;
     margin-top: 4px;
 } 
+
+/* Markdown 内容样式 */
+.message-text {
+    line-height: 1.6;
+}
+
+.message-text h1,
+.message-text h2,
+.message-text h3,
+.message-text h4,
+.message-text h5,
+.message-text h6 {
+    margin: 16px 0 8px 0;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.message-text h1 { font-size: 1.5em; }
+.message-text h2 { font-size: 1.3em; }
+.message-text h3 { font-size: 1.1em; }
+
+.message-text p {
+    margin: 8px 0;
+}
+
+.message-text ul,
+.message-text ol {
+    margin: 8px 0;
+    padding-left: 24px;
+}
+
+.message-text li {
+    margin: 4px 0;
+}
+
+.message-text blockquote {
+    margin: 12px 0;
+    padding: 8px 16px;
+    border-left: 4px solid #667eea;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-style: italic;
+}
+
+.message-text code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #e11d48;
+}
+
+.message-text pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+}
+
+.message-text pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-size: 0.9em;
+}
+
+.message-text table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+}
+
+.message-text th,
+.message-text td {
+    border: 1px solid #e5e7eb;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.message-text th {
+    background: #f8fafc;
+    font-weight: 600;
+}
+
+.message-text a {
+    color: #667eea;
+    text-decoration: none;
+}
+
+.message-text a:hover {
+    text-decoration: underline;
+}
+
+.message-text strong {
+    font-weight: 600;
+}
+
+.message-text em {
+    font-style: italic;
+}
+
+.message-text hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 16px 0;
+}
+
+/* 代码高亮主题调整 */
+.message-text .token.comment,
+.message-text .token.prolog,
+.message-text .token.doctype,
+.message-text .token.cdata {
+    color: #6b7280;
+}
+
+.message-text .token.punctuation {
+    color: #e5e7eb;
+}
+
+.message-text .token.property,
+.message-text .token.tag,
+.message-text .token.boolean,
+.message-text .token.number,
+.message-text .token.constant,
+.message-text .token.symbol {
+    color: #fbbf24;
+}
+
+.message-text .token.selector,
+.message-text .token.attr-name,
+.message-text .token.string,
+.message-text .token.char,
+.message-text .token.builtin {
+    color: #34d399;
+}
+
+.message-text .token.operator,
+.message-text .token.entity,
+.message-text .token.url,
+.language-css .token.string,
+.style .token.string {
+    color: #f87171;
+}
+
+.message-text .token.atrule,
+.message-text .token.attr-value,
+.message-text .token.keyword {
+    color: #a78bfa;
+}
+
+.message-text .token.function {
+    color: #60a5fa;
+}
+
+.message-text .token.regex,
+.message-text .token.important,
+.message-text .token.variable {
+    color: #fbbf24;
+} 
+
+/* 数学公式样式 */
+.message-text .katex {
+    font-size: 1em;
+    line-height: 1.2;
+}
+
+.message-text .katex-display {
+    margin: 1em 0;
+    text-align: center;
+}
+
+.message-text .katex-display .katex {
+    font-size: 1.1em;
+}
+
+/* 行内公式样式 */
+.message-text .katex-inline {
+    margin: 0 0.2em;
+}
+
+/* 块级公式样式 */
+.message-text .katex-block {
+    display: block;
+    margin: 1em auto;
+    text-align: center;
+}
+
+/* 数学公式容器 */
+.message-text .math-container {
+    margin: 1em 0;
+    overflow-x: auto;
+}
+
+/* 行内数学公式 */
+.message-text .math-inline {
+    display: inline-block;
+    margin: 0 0.2em;
+}
+
+/* 块级数学公式 */
+.message-text .math-block {
+    display: block;
+    margin: 1em auto;
+    text-align: center;
+}
+
+/* 数学公式错误提示 */
+.message-text .math-error {
+    color: #dc2626;
+    font-style: italic;
+    background: #fef2f2;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border-left: 3px solid #dc2626;
+}
+
+.app-container.logged-out .main-content,
+.app-container.logged-out .sidebar {
+    filter: blur(5px);
+}

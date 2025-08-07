@@ -12,9 +12,6 @@ from fastapi import FastAPI
 app = FastAPI()
 
 
-@app.get("/test/{item}")
-async def root(item):
-    return {"message": "Hello World", "a": item}
 
 def main():
     """主函数"""

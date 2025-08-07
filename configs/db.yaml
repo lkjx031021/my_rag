@@ -1,0 +1,7 @@
+
+db:
+  username: root
+  hostname: '127.0.0.1'
+  database_name: 'fufanchat'
+  password: "sonw1234567!"
+

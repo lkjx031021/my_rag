@@ -2,9 +2,11 @@
 let chatHistory = [];
 let currentChatId = null;
 let isStreaming = false;
+let authToken = null;
 
 // DOM 元素
 const elements = {
+    appContainer: document.querySelector('.app-container'),
     messageInput: document.getElementById('messageInput'),
     sendBtn: document.getElementById('sendBtn'),
     chatMessages: document.getElementById('chatMessages'),
@@ -20,14 +22,26 @@ const elements = {
     fileInput: document.getElementById('fileInput'),
     charCount: document.getElementById('charCount'),
     systemPrompt: document.getElementById('systemPrompt'),
-    streamingToggle: document.getElementById('streamingToggle')
+    streamingToggle: document.getElementById('streamingToggle'),
+    // 登录/注册相关元素
+    loginModal: document.getElementById('loginModal'),
+    loginForm: document.getElementById('loginForm'),
+    registerForm: document.getElementById('registerForm'),
+    loginError: document.getElementById('loginError'),
+    registerError: document.getElementById('registerError'),
+    logoutBtn: document.getElementById('logoutBtn'),
+    currentUser: document.getElementById('currentUser'),
+    showRegisterBtn: document.getElementById('show-register'),
+    showLoginBtn: document.getElementById('show-login'),
+    loginFormContainer: document.getElementById('login-form-container'),
+    registerFormContainer: document.getElementById('register-form-container'),
 };
 
 // 初始化应用
 function initApp() {
     setupEventListeners();
     setupAutoResize();
-    loadChatHistory();
+    checkLoginStatus();
     updateCharCount();
 }
 
@@ -55,9 +69,160 @@ function setupEventListeners() {
     elements.uploadBtn.addEventListener('click', () => elements.fileInput.click());
     elements.fileInput.addEventListener('change', handleFileUpload);
 
+    // 登录/注册/登出
+    elements.loginForm.addEventListener('submit', handleLogin);
+    elements.registerForm.addEventListener('submit', handleRegister);
+    elements.logoutBtn.addEventListener('click', handleLogout);
+    elements.showRegisterBtn.addEventListener('click', showRegisterForm);
+    elements.showLoginBtn.addEventListener('click', showLoginForm);
+
+
     // 键盘快捷键
     document.addEventListener('keydown', handleGlobalKeyDown);
 }
+
+// --- 认证功能 ---
+
+function showRegisterForm(e) {
+    if(e) e.preventDefault();
+    elements.loginFormContainer.style.display = 'none';
+    elements.registerFormContainer.style.display = 'block';
+}
+
+function showLoginForm(e) {
+    if(e) e.preventDefault();
+    elements.registerFormContainer.style.display = 'none';
+    elements.loginFormContainer.style.display = 'block';
+}
+
+
+async function handleRegister(e) {
+    e.preventDefault();
+    const email = e.target['register-email'].value;
+    const password = e.target['register-password'].value;
+    elements.registerError.textContent = '';
+
+    try {
+        const response = await fetch('/users/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+        });
+
+        if (response.ok) {
+            alert('注册成功！现在您可以登录了。');
+            showLoginForm();
+        } else {
+            const errorData = await response.json();
+            elements.registerError.textContent = errorData.detail || '注册失败，请重试。';
+        }
+    } catch (error) {
+        elements.registerError.textContent = '发生网络错误，请重试。';
+    }
+}
+
+
+function checkLoginStatus() {
+    authToken = localStorage.getItem('ragToken');
+    if (authToken) {
+        // 验证token是否有效
+        fetch('/api/users/me', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+            throw new Error('Token invalid');
+        })
+        .then(user => {
+            showApp(user);
+        })
+        .catch(() => {
+            handleLogout();
+            showLogin();
+        });
+    } else {
+        showLogin();
+    }
+}
+
+function showLogin() {
+    elements.loginModal.classList.add('show');
+    elements.appContainer.classList.add('logged-out');
+}
+
+function showApp(user) {
+    elements.loginModal.classList.remove('show');
+    elements.appContainer.classList.remove('logged-out');
+    elements.logoutBtn.style.display = 'flex';
+    elements.currentUser.textContent = user.username;
+    loadChatHistory();
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const email = e.target['login-email'].value;
+    const password = e.target['login-password'].value;
+    
+    // FastAPI's OAuth2PasswordRequestForm expects form data
+    const formData = new FormData();
+    formData.append('username', email); // The form expects 'username'
+    formData.append('password', password);
+
+    try {
+        // NOTE: The login endpoint might need to be created.
+        // Assuming a /token endpoint for OAuth2
+        const response = await fetch('/token', { // This needs to be a real login endpoint
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            authToken = data.access_token;
+            localStorage.setItem('ragToken', authToken);
+            elements.loginError.textContent = '';
+            checkLoginStatus(); // This will fail until checkLoginStatus is updated
+        } else {
+            const errorData = await response.json();
+            elements.loginError.textContent = errorData.detail || '登录失败';
+        }
+    } catch (error) {
+        elements.loginError.textContent = '发生网络错误，请重试。';
+    }
+}
+
+function handleLogout() {
+    authToken = null;
+    localStorage.removeItem('ragToken');
+    elements.logoutBtn.style.display = 'none';
+    elements.currentUser.textContent = '';
+    chatHistory = [];
+    updateChatHistoryUI();
+    showLogin();
+}
+
+// --- API 请求封装 ---
+
+async function fetchWithAuth(url, options = {}) {
+    const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${authToken}`
+    };
+
+    const response = await fetch(url, { ...options, headers });
+
+    if (response.status === 401) {
+        handleLogout();
+        throw new Error('Unauthorized');
+    }
+
+    return response;
+}
+
 
 // 设置自动调整输入框高度
 function setupAutoResize() {
@@ -90,6 +255,23 @@ function handleGlobalKeyDown(e) {
     }
 }
 
+// --- Utility Functions ---
+function debounce(func, wait) {
+    let timeout;
+
+    const debounced = function(...args) {
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), wait);
+    };
+
+    debounced.cancel = function() {
+        clearTimeout(timeout);
+    };
+
+    return debounced;
+}
+
 // 更新字符计数
 function updateCharCount() {
     const length = elements.messageInput.value.length;
@@ -104,50 +286,37 @@ async function sendMessage() {
     const message = elements.messageInput.value.trim();
     if (!message || isStreaming) return;
 
-    // 添加用户消息到界面
     addMessageToUI('user', message);
     
-    // 清空输入框
     elements.messageInput.value = '';
     elements.messageInput.style.height = 'auto';
     updateCharCount();
 
-    // 显示加载指示器
     showLoading();
 
     try {
-        // 创建助手消息容器
         const assistantMessageId = addMessageToUI('assistant', '');
-        
-        // 发送流式请求
         await streamResponse(message, assistantMessageId);
-        
-        // 保存到聊天历史
-        saveToChatHistory(message);
+        saveToChatHistory(message, assistantMessageId); // Assuming assistantMessageId is not needed here, but the function signature implies it. 
         
     } catch (error) {
         console.error('发送消息失败:', error);
-        addErrorMessage('发送消息时出现错误，请重试。');
+        if (error.message !== 'Unauthorized') {
+            addErrorMessage('发送消息时出现错误，请重试。');
+        }
     } finally {
         hideLoading();
+        updateCharCount();
     }
 }
 
 // 流式响应处理
 async function streamResponse(message, messageId) {
-    const requestData = {
-        message: message,
-        history: chatHistory,
-        system_prompt: elements.systemPrompt.value
-    };
-
     try {
-        const response = await fetch('/api/chat', {
+        const response = await fetchWithAuth('/api/chat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestData)
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message })
         });
 
         if (!response.ok) {
@@ -161,7 +330,6 @@ async function streamResponse(message, messageId) {
 
         while (true) {
             const { done, value } = await reader.read();
-            
             if (done) break;
             
             buffer += decoder.decode(value, { stream: true });
@@ -172,14 +340,15 @@ async function streamResponse(message, messageId) {
                 if (line.startsWith('data: ')) {
                     try {
                         const data = JSON.parse(line.slice(6));
-                        
-                        if (data.type === 'content') {
-                            currentContent += data.content;
-                            updateMessageContent(messageId, currentContent);
-                        } else if (data.type === 'sources') {
-                            addSourcesToMessage(messageId, data.sources);
+                        if (data.text) {
+                            currentContent += data.text;
+                            // Re-render the entire message content on each new chunk
+                            // to provide a true real-time rendering experience.
+                            updateMessageContent(messageId, currentContent, true);
                         } else if (data.type === 'error') {
-                            updateMessageContent(messageId, data.content);
+                            currentContent = data.content;
+                            // Display error text directly
+                            updateMessageContent(messageId, currentContent, false);
                         }
                     } catch (e) {
                         console.error('解析流数据失败:', e);
@@ -188,58 +357,80 @@ async function streamResponse(message, messageId) {
             }
         }
 
+        // Final update to chat history with the complete message
+        const chat = chatHistory.find(c => c.id === currentChatId);
+        if (chat) {
+            const lastMessage = chat.messages[chat.messages.length - 1];
+            if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.content = currentContent;
+                localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            }
+        }
+
     } catch (error) {
         console.error('流式响应错误:', error);
-        updateMessageContent(messageId, '抱歉，处理您的请求时出现了错误。请重试。');
+        updateMessageContent(messageId, '抱歉，处理您的请求时出现了错误。请重试。', true);
+        throw error; // Re-throw to be caught by sendMessage
     }
 }
 
 // 添加消息到UI
 function addMessageToUI(role, content) {
     const messageDiv = document.createElement('div');
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    messageDiv.id = messageId;
     messageDiv.className = `message ${role}-message`;
     
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
-    
-    if (role === 'user') {
-        avatar.innerHTML = '<i class="fas fa-user"></i>';
-    } else {
-        avatar.innerHTML = '<i class="fas fa-robot"></i>';
-    }
-    
+    avatar.innerHTML = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+
     const messageContent = document.createElement('div');
     messageContent.className = 'message-content';
-    
+
     const messageText = document.createElement('div');
     messageText.className = 'message-text';
     messageText.innerHTML = formatMessageContent(content);
-    
+
     const messageTime = document.createElement('div');
     messageTime.className = 'message-time';
     messageTime.textContent = getCurrentTime();
-    
+
     messageContent.appendChild(messageText);
     messageContent.appendChild(messageTime);
-    
     messageDiv.appendChild(avatar);
     messageDiv.appendChild(messageContent);
-    
     elements.chatMessages.appendChild(messageDiv);
-    
-    // 滚动到底部
+
+    if (window.MathJax && window.MathJax.typeset) {
+        window.MathJax.startup.promise.then(() => {
+            window.MathJax.typesetPromise([messageText]).catch((err) => console.warn('公式渲染失败:', err));
+        });
+    }
+
     scrollToBottom();
-    
-    // 返回消息ID用于后续更新
-    return messageDiv.id = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return messageId;
 }
 
 // 更新消息内容
-function updateMessageContent(messageId, content) {
+function updateMessageContent(messageId, content, needsRender = false) {
     const messageDiv = document.getElementById(messageId);
     if (messageDiv) {
         const messageText = messageDiv.querySelector('.message-text');
         messageText.innerHTML = formatMessageContent(content);
+        
+        if (needsRender) {
+            if (window.Prism) {
+                Prism.highlightAllUnder(messageDiv);
+            }
+            
+            if (window.MathJax && window.MathJax.typeset) {
+                window.MathJax.startup.promise.then(() => {
+                    window.MathJax.typesetPromise([messageText]).catch((err) => console.warn('公式渲染失败:', err));
+                });
+            }
+        }
+        
         scrollToBottom();
     }
 }
@@ -248,87 +439,75 @@ function updateMessageContent(messageId, content) {
 function formatMessageContent(content) {
     if (!content) return '';
     
-    // 处理换行
-    content = content.replace(/\n/g, '<br>');
-    
-    // 处理代码块
-    content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-        return `<pre><code class="language-${lang || 'text'}">${code}</code></pre>`;
-    });
-    
-    // 处理行内代码
-    content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
-    
-    // 处理链接
-    content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-    
-    return content;
-}
+    try {
+        // Protect math expressions from marked.js
+        const mathBlocks = [];
+        // Regex for both inline ($...$) and display ($...$) math.
+        // It's more specific to avoid greedily matching across formulas.
+        const mathRegex = /(\$\$[^\$\n]+\$\$|\$[^\$\n]+\$)/g;
+        
+        let tempContent = content.replace(mathRegex, (match) => {
+            const placeholder = `__MATHJAX_PLACEHOLDER_${mathBlocks.length}__`;
+            mathBlocks.push(match);
+            return placeholder;
+        });
 
-// 添加源信息到消息
-function addSourcesToMessage(messageId, sources) {
-    const messageDiv = document.getElementById(messageId);
-    if (!messageDiv || !sources || sources.length === 0) return;
-    
-    const sourcesContainer = document.createElement('div');
-    sourcesContainer.className = 'sources-container';
-    
-    const sourcesTitle = document.createElement('div');
-    sourcesTitle.className = 'sources-title';
-    sourcesTitle.innerHTML = '<i class="fas fa-book"></i> 参考来源';
-    
-    sourcesContainer.appendChild(sourcesTitle);
-    
-    sources.forEach(source => {
-        const sourceItem = document.createElement('div');
-        sourceItem.className = 'source-item';
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            sanitize: false,
+            highlight: function(code, lang) {
+                if (lang && Prism.languages[lang]) {
+                    try {
+                        return Prism.highlight(code, Prism.languages[lang], lang);
+                    } catch (err) { console.warn('代码高亮失败:', err); }
+                }
+                return code;
+            }
+        });
         
-        sourceItem.innerHTML = `
-            <div class="source-title">${source.title}</div>
-            <div class="source-content">${source.content}</div>
-            <div class="source-score">相关度: ${(source.relevance_score * 100).toFixed(1)}%</div>
-        `;
-        
-        sourcesContainer.appendChild(sourceItem);
-    });
-    
-    const messageContent = messageDiv.querySelector('.message-content');
-    messageContent.appendChild(sourcesContainer);
+        let html = marked.parse(tempContent);
+
+        // Restore math blocks
+        html = html.replace(/__MATHJAX_PLACEHOLDER_(\d+)__/g, (match, index) => {
+            return mathBlocks[parseInt(index, 10)];
+        });
+
+        html = html.replace(/<pre><code class="language-(\w+)">/g, '<pre><code class="language-$1">');
+        html = html.replace(/<pre><code>/g, '<pre><code class="language-text">');
+        return html;
+    } catch (error) {
+        console.error('Markdown解析失败:', error);
+        return content.replace(/\n/g, '<br>');
+    }
 }
 
 // 添加错误消息
 function addErrorMessage(content) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message assistant-message error';
-    
     messageDiv.innerHTML = `
-        <div class="message-avatar">
-            <i class="fas fa-exclamation-triangle"></i>
-        </div>
+        <div class="message-avatar"><i class="fas fa-exclamation-triangle"></i></div>
         <div class="message-content">
-            <div class="message-text" style="color: #dc2626;">
-                ${content}
-            </div>
+            <div class="message-text" style="color: #dc2626;">${content}</div>
             <div class="message-time">${getCurrentTime()}</div>
         </div>
     `;
-    
     elements.chatMessages.appendChild(messageDiv);
     scrollToBottom();
 }
 
-// 显示加载指示器
+// 显示/隐藏加载指示器
 function showLoading() {
     isStreaming = true;
     elements.loadingIndicator.style.display = 'flex';
     elements.sendBtn.disabled = true;
 }
 
-// 隐藏加载指示器
 function hideLoading() {
     isStreaming = false;
     elements.loadingIndicator.style.display = 'none';
-    elements.sendBtn.disabled = false;
+    updateCharCount();
 }
 
 // 滚动到底部
@@ -338,11 +517,7 @@ function scrollToBottom() {
 
 // 获取当前时间
 function getCurrentTime() {
-    const now = new Date();
-    return now.toLocaleTimeString('zh-CN', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
+    return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
 // 切换侧边栏
@@ -352,50 +527,35 @@ function toggleSidebar() {
 
 // 开始新对话
 function startNewChat() {
-    // 清空聊天界面
     elements.chatMessages.innerHTML = `
         <div class="message assistant-message">
-            <div class="message-avatar">
-                <i class="fas fa-robot"></i>
-            </div>
+            <div class="message-avatar"><i class="fas fa-robot"></i></div>
             <div class="message-content">
                 <div class="message-text">
-                    <p>👋 你好！我是RAG智能问答系统，基于检索增强生成技术构建。</p>
-                    <p>我可以帮助你：</p>
-                    <ul>
-                        <li>回答基于知识库的问题</li>
-                        <li>提供准确的信息检索</li>
-                        <li>支持文档上传和知识库扩展</li>
-                    </ul>
-                    <p>请开始提问吧！</p>
+                    <p>👋 你好！我是RAG智能问答系统。请开始提问吧！</p>
                 </div>
                 <div class="message-time">现在</div>
             </div>
         </div>
     `;
     
-    // 清空聊天历史
-    chatHistory = [];
     currentChatId = null;
-    
-    // 更新侧边栏
     updateChatHistoryUI();
     
-    // 在移动端隐藏侧边栏
     if (window.innerWidth <= 768) {
         elements.sidebar.classList.remove('show');
     }
 }
 
 // 保存到聊天历史
-function saveToChatHistory(message) {
+function saveToChatHistory(userMessage, assistantMessageId) { // assistantMessageId is unused in this function
     const chatId = currentChatId || `chat-${Date.now()}`;
-    currentChatId = chatId;
     
-    if (!chatHistory.find(chat => chat.id === chatId)) {
+    if (!currentChatId) {
+        currentChatId = chatId;
         chatHistory.push({
             id: chatId,
-            title: message.substring(0, 50) + (message.length > 50 ? '...' : ''),
+            title: userMessage.substring(0, 40) + (userMessage.length > 40 ? '...' : ''),
             timestamp: new Date().toISOString(),
             messages: []
         });
@@ -404,20 +564,24 @@ function saveToChatHistory(message) {
     const chat = chatHistory.find(chat => chat.id === chatId);
     chat.messages.push({
         role: 'user',
-        content: message,
+        content: userMessage,
+        timestamp: new Date().toISOString()
+    });
+    // Add a placeholder for the assistant message
+    chat.messages.push({
+        role: 'assistant',
+        content: '', // This will be updated when the stream ends
         timestamp: new Date().toISOString()
     });
     
-    // 保存到本地存储
     localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
-    
-    // 更新UI
     updateChatHistoryUI();
 }
 
 // 更新聊天历史UI
 function updateChatHistoryUI() {
     elements.chatHistory.innerHTML = '';
+    chatHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
     chatHistory.forEach(chat => {
         const chatItem = document.createElement('div');
@@ -439,19 +603,14 @@ function loadChat(chatId) {
     if (!chat) return;
     
     currentChatId = chatId;
-    
-    // 清空当前聊天界面
     elements.chatMessages.innerHTML = '';
     
-    // 加载聊天消息
     chat.messages.forEach(msg => {
         addMessageToUI(msg.role, msg.content);
     });
     
-    // 更新侧边栏
     updateChatHistoryUI();
     
-    // 在移动端隐藏侧边栏
     if (window.innerWidth <= 768) {
         elements.sidebar.classList.remove('show');
     }
@@ -466,16 +625,16 @@ function loadChatHistory() {
             updateChatHistoryUI();
         } catch (e) {
             console.error('加载聊天历史失败:', e);
+            chatHistory = [];
         }
     }
 }
 
-// 显示设置模态框
+// 显示/隐藏设置模态框
 function showSettingsModal() {
     elements.settingsModal.classList.add('show');
 }
 
-// 隐藏设置模态框
 function hideSettingsModal() {
     elements.settingsModal.classList.remove('show');
 }
@@ -489,7 +648,7 @@ async function handleFileUpload(event) {
     formData.append('file', file);
     
     try {
-        const response = await fetch('/api/upload', {
+        const response = await fetchWithAuth('/api/upload', {
             method: 'POST',
             body: formData
         });
@@ -502,10 +661,11 @@ async function handleFileUpload(event) {
         }
     } catch (error) {
         console.error('文件上传错误:', error);
-        alert('文件上传失败，请重试。');
+        if (error.message !== 'Unauthorized') {
+            alert('文件上传失败，请重试。');
+        }
     }
     
-    // 清空文件输入
     event.target.value = '';
 }
 
@@ -517,4 +677,4 @@ window.addEventListener('resize', () => {
     if (window.innerWidth > 768) {
         elements.sidebar.classList.remove('show');
     }
-}); 
+});
