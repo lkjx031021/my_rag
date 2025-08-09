@@ -31,7 +31,7 @@ class Cfg():
         with open(db_yaml_path, 'r', encoding='utf-8') as file:
             self.cfg = yaml.safe_load(file)
 
-cfg = Cfg()
+cfg = Cfg().cfg
 # --- 使用示例 ---
 # 如果直接运行此文件，则打印数据库配置
 if __name__ == '__main__':

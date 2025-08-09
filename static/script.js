@@ -98,25 +98,26 @@ function showLoginForm(e) {
 
 async function handleRegister(e) {
     e.preventDefault();
-    const email = e.target['register-email'].value;
+    const username = e.target['register-username'].value;
     const password = e.target['register-password'].value;
     elements.registerError.textContent = '';
 
     try {
-        const response = await fetch('/users/', {
+        const response = await fetch('/api/users/register', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ username, password }),
         });
 
+        const data = await response.json();
+        
         if (response.ok) {
             alert('注册成功！现在您可以登录了。');
             showLoginForm();
         } else {
-            const errorData = await response.json();
-            elements.registerError.textContent = errorData.detail || '注册失败，请重试。';
+            elements.registerError.textContent = data.message || '注册失败，请重试。';
         }
     } catch (error) {
         elements.registerError.textContent = '发生网络错误，请重试。';
@@ -127,23 +128,8 @@ async function handleRegister(e) {
 function checkLoginStatus() {
     authToken = localStorage.getItem('ragToken');
     if (authToken) {
-        // 验证token是否有效
-        fetch('/api/users/me', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        })
-        .then(response => {
-            if (response.ok) {
-                return response.json();
-            }
-            throw new Error('Token invalid');
-        })
-        .then(user => {
-            showApp(user);
-        })
-        .catch(() => {
-            handleLogout();
-            showLogin();
-        });
+        // Simple check - just show app with stored username
+        showApp({ username: authToken });
     } else {
         showLogin();
     }
@@ -164,31 +150,27 @@ function showApp(user) {
 
 async function handleLogin(e) {
     e.preventDefault();
-    const email = e.target['login-email'].value;
+    const username = e.target['login-username'].value;
     const password = e.target['login-password'].value;
-    
-    // FastAPI's OAuth2PasswordRequestForm expects form data
-    const formData = new FormData();
-    formData.append('username', email); // The form expects 'username'
-    formData.append('password', password);
+    elements.loginError.textContent = '';
 
     try {
-        // NOTE: The login endpoint might need to be created.
-        // Assuming a /token endpoint for OAuth2
-        const response = await fetch('/token', { // This needs to be a real login endpoint
+        const response = await fetch('/api/users/login', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password }),
         });
 
+        const data = await response.json();
+        
         if (response.ok) {
-            const data = await response.json();
-            authToken = data.access_token;
+            authToken = data.username; // Using username as simple auth token
             localStorage.setItem('ragToken', authToken);
-            elements.loginError.textContent = '';
-            checkLoginStatus(); // This will fail until checkLoginStatus is updated
+            showApp({ username: data.username });
         } else {
-            const errorData = await response.json();
-            elements.loginError.textContent = errorData.detail || '登录失败';
+            elements.loginError.textContent = data.message || '用户名或密码错误';
         }
     } catch (error) {
         elements.loginError.textContent = '发生网络错误，请重试。';
@@ -337,27 +319,36 @@ async function streamResponse(message, messageId) {
             buffer = lines.pop() || '';
 
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.slice(6));
+                if (!line.trim()) continue; // 跳过空行
+                
+                try {
+                    if (line.startsWith('data: ')) {
+                        const jsonStr = line.slice(6).trim();
+                        if (!jsonStr) continue; // 跳过空数据
+                        
+                        console.log('原始SSE数据:', jsonStr); // 调试日志
+                        
+                        const data = JSON.parse(jsonStr);
+                        console.log('解析后数据:', data); // 调试日志
+                        
                         if (data.text) {
                             currentContent += data.text;
-                            // Re-render the entire message content on each new chunk
-                            // to provide a true real-time rendering experience.
                             updateMessageContent(messageId, currentContent, true);
+                            await new Promise(resolve => setTimeout(resolve, 10));
                         } else if (data.type === 'error') {
-                            currentContent = data.content;
-                            // Display error text directly
+                            currentContent = data.text || data.content || '处理请求时出错';
                             updateMessageContent(messageId, currentContent, false);
+                            break;
                         }
-                    } catch (e) {
-                        console.error('解析流数据失败:', e);
                     }
+                } catch (e) {
+                    console.error('解析SSE数据失败:', e, '原始数据:', line);
+                    // 不中断流程，继续处理后续数据
                 }
             }
         }
 
-        // Final update to chat history with the complete message
+        // 更新聊天历史
         const chat = chatHistory.find(c => c.id === currentChatId);
         if (chat) {
             const lastMessage = chat.messages[chat.messages.length - 1];
@@ -366,11 +357,10 @@ async function streamResponse(message, messageId) {
                 localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
             }
         }
-
     } catch (error) {
         console.error('流式响应错误:', error);
         updateMessageContent(messageId, '抱歉，处理您的请求时出现了错误。请重试。', true);
-        throw error; // Re-throw to be caught by sendMessage
+        throw error;
     }
 }
 
@@ -420,14 +410,36 @@ function updateMessageContent(messageId, content, needsRender = false) {
         messageText.innerHTML = formatMessageContent(content);
         
         if (needsRender) {
+            // 代码高亮
             if (window.Prism) {
                 Prism.highlightAllUnder(messageDiv);
             }
             
-            if (window.MathJax && window.MathJax.typeset) {
-                window.MathJax.startup.promise.then(() => {
-                    window.MathJax.typesetPromise([messageText]).catch((err) => console.warn('公式渲染失败:', err));
-                });
+            // 数学公式渲染
+            if (window.MathJax) {
+                try {
+                    // 确保MathJax已加载
+                    if (window.MathJax.typesetPromise) {
+                        window.MathJax.typesetPromise([messageText]).catch(err => {
+                            console.warn('MathJax渲染失败:', err);
+                            // 重试渲染
+                            setTimeout(() => {
+                                if (window.MathJax.typesetPromise) {
+                                    window.MathJax.typesetPromise([messageText]);
+                                }
+                            }, 500);
+                        });
+                    } else {
+                        // 如果MathJax未完全加载，等待后重试
+                        setTimeout(() => {
+                            if (window.MathJax.typesetPromise) {
+                                window.MathJax.typesetPromise([messageText]);
+                            }
+                        }, 1000);
+                    }
+                } catch (err) {
+                    console.error('MathJax渲染错误:', err);
+                }
             }
         }
         
@@ -440,21 +452,23 @@ function formatMessageContent(content) {
     if (!content) return '';
     
     try {
-        // Protect math expressions from marked.js
+        // 更强大的数学公式匹配正则表达式
+        const mathRegex = /(\$\$[\s\S]+?\$\$|\$[^\$\n]+?\$(?!\w))/g;
         const mathBlocks = [];
-        // Regex for both inline ($...$) and display ($...$) math.
-        // It's more specific to avoid greedily matching across formulas.
-        const mathRegex = /(\$\$[^\$\n]+\$\$|\$[^\$\n]+\$)/g;
         
+        // 保护数学公式不被marked.js处理
         let tempContent = content.replace(mathRegex, (match) => {
             const placeholder = `__MATHJAX_PLACEHOLDER_${mathBlocks.length}__`;
             mathBlocks.push(match);
             return placeholder;
         });
 
+        // 配置marked.js
         marked.setOptions({
             breaks: true,
             gfm: true,
+            smartLists: true,
+            smartypants: true,
             sanitize: false,
             highlight: function(code, lang) {
                 if (lang && Prism.languages[lang]) {
@@ -466,15 +480,18 @@ function formatMessageContent(content) {
             }
         });
         
+        // 解析Markdown
         let html = marked.parse(tempContent);
 
-        // Restore math blocks
+        // 恢复数学公式
         html = html.replace(/__MATHJAX_PLACEHOLDER_(\d+)__/g, (match, index) => {
             return mathBlocks[parseInt(index, 10)];
         });
 
+        // 确保代码块有正确的语言类
         html = html.replace(/<pre><code class="language-(\w+)">/g, '<pre><code class="language-$1">');
         html = html.replace(/<pre><code>/g, '<pre><code class="language-text">');
+        
         return html;
     } catch (error) {
         console.error('Markdown解析失败:', error);
