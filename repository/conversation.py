@@ -7,7 +7,10 @@ from fastapi import FastAPI, Body, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from server.db.models.conversation_model import ConversationModel
+from server.db.models.message_model import MessageModel
+from server.db import *
 from sqlalchemy.future import select
+from sqlalchemy import desc
 
 from server.db.session import get_async_db
 
@@ -15,6 +18,22 @@ class RequestConversation(BaseModel):
     user_id: str = Field(..., description="The ID of the user creating the conversation")
     name: str = Field(default='New Chat', description="Name of the conversation, defaults to 'New Chat'")
     chat_type: str = Field(default='text', description="Type of chat, defaults to 'text'")
+
+class MessageResponse(BaseModel):
+    id: str = Field(..., description="消息的唯一标识符")
+    conversation_id: str = Field(..., description="关联的会话ID")
+    chat_type: str = Field(..., description="对话类型（普通问答、知识库问答、AI搜索、推荐系统、Agent问答）")
+    query: str = Field(..., description="用户的问题")
+    response: str = Field(..., description="大模型的回答")
+    meta_data: dict = Field(..., description="其他元数据")
+    create_time: datetime = Field(..., description="消息创建时间")
+
+class ConversationResponse(BaseModel):
+    id: str
+    name: str
+    chat_type: str
+    create_time: datetime
+
 
 async def create_new_conversation(
         request: RequestConversation = Body(...),
@@ -42,17 +61,60 @@ async def create_new_conversation(
     except:
         traceback.print_exc()
 
+async def get_user_conversations(
+        user_id: str,
+        chat_types: str = Query(...),
+        session: AsyncSession = Depends(get_async_db)
+):
+    """
+    用来获取指定用户名的历史对话窗口
+    """
+    async with session as async_session:
+        result = await async_session.execute(
+            select(ConversationModel)
+            .where(ConversationModel.user_id == user_id,
+                   ConversationModel.chat_type == chat_types)
+            .order_by(desc(ConversationModel.create_time))
+        )
+        conversations = result.scalars().all()
 
-async def get_user_conversation(
+        if conversations == []:
+            return {"status": 200, "msg": "success", "data": []}
+        else:
+            data = [ConversationResponse(
+                id=conv.id,
+                name=conv.name,
+                chat_type=conv.chat_type,
+                create_time=conv.create_time
+            ) for conv in conversations]
+
+            return {"status": 200, "msg": "success", "data": data}
+
+async def get_conversation_messages(
         conversation_id: str,
         chat_types: List[str] = Query(None),
         session: AsyncSession = Depends(get_async_db)
 ):
     async with (session as async_session):
-        query = select(ConversationModel).where(ConversationModel.id == conversation_id)
+        query = select(MessageModel).where(MessageModel.conversation_id == conversation_id)
         if chat_types:
-            query = query.where(ConversationModel.chat_type.in_(chat_types))
+            query = query.where(MessageModel.chat_type.in_(chat_types))
 
         result = await async_session.execute(query)
         messages = result.scalars().all()
-        pass
+        if not messages:
+            return {"status_code": 200, "msg": "success", "data": []}
+        data = [
+            MessageResponse(
+                id=msg.id,
+                conversation_id=msg.conversation_id,
+                chat_type=msg.chat_type,
+                query=msg.query,
+                response=msg.response,
+                meta_data=msg.meta_data,
+                create_time=msg.create_time
+            ) 
+            for msg in messages
+        ]
+
+        return {"status": 200, "msg": "success", "data": data}

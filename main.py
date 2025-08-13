@@ -12,6 +12,8 @@ import logging
 
 from regex import T
 from routers.user_repository import register_user, login_user
+from routers.message_repository import add_message_to_db, filter_message, get_message_by_id, update_message
+from repository.conversation import create_new_conversation, get_user_conversations, get_conversation_messages
 
 from sse_starlette.sse import EventSourceResponse
 
@@ -90,6 +92,12 @@ class RAGSystem:
 如果您需要更详细的信息或有其他问题，请随时告诉我。"""
         
         return response
+
+    async def get_conversation_history(self, conversation_id: str) -> List[Dict[str, Any]]:
+        """获取会话历史记录"""
+        # 这里可以实现从数据库获取会话历史的逻辑
+        conversation_messages = await get_conversation_messages(conversation_id)
+        return conversation_messages.get("data", [])
 
 # 初始化RAG系统
 rag_system = RAGSystem()
@@ -183,6 +191,18 @@ async def chat_stream(query: ChatRequest):
             yield f"data: {json.dumps(error_chunk, ensure_ascii=False)}\n\n"
     
     return EventSourceResponse(generate_stream())
+
+@app.get("/api/conversations")
+async def get_conversations(user_id: str, chat_type: str):
+    """获取用户对话列表"""
+    conversations = await get_user_conversations(user_id, chat_type)
+    return conversations
+
+@app.get("/api/conversations/messages")
+async def get_conversation_messages_api(conversation_id: str):
+    """获取会话详细记录"""
+    messages = await get_conversation_messages(conversation_id)
+    return messages
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):

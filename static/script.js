@@ -477,17 +477,39 @@ function formatMessageContent(content) {
                     } catch (err) { console.warn('代码高亮失败:', err); }
                 }
                 return code;
+            },
+            // 添加数学公式扩展
+            extensions: {
+                math: {
+                    // 启用内联公式
+                    inlineMath: { 
+                        open: '$', 
+                        close: '$', 
+                        latex: false 
+                    },
+                    // 启用块级公式
+                    displayMath: { 
+                        open: '$$', 
+                        close: '$$', 
+                        latex: true 
+                    }
+                }
             }
         });
         
         // 解析Markdown
         let html = marked.parse(tempContent);
-
+        
         // 恢复数学公式
         html = html.replace(/__MATHJAX_PLACEHOLDER_(\d+)__/g, (match, index) => {
             return mathBlocks[parseInt(index, 10)];
         });
-
+        
+        // 特别处理数学公式，确保MathJax正确渲染
+        html = html.replace(/<formula>(.*?)<\/formula>/g, (match, p1) => {
+            return `<span class="math">$${p1}$$</span>`;
+        });
+        
         // 确保代码块有正确的语言类
         html = html.replace(/<pre><code class="language-(\w+)">/g, '<pre><code class="language-$1">');
         html = html.replace(/<pre><code>/g, '<pre><code class="language-text">');
