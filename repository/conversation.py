@@ -26,40 +26,50 @@ class MessageResponse(BaseModel):
     query: str = Field(..., description="用户的问题")
     response: str = Field(..., description="大模型的回答")
     meta_data: dict = Field(..., description="其他元数据")
-    create_time: datetime = Field(..., description="消息创建时间")
+    create_time: datetime | None = Field(..., description="消息创建时间")
 
 class ConversationResponse(BaseModel):
     id: str
     name: str
     chat_type: str
-    create_time: datetime
+    create_time: datetime | None = None
+    user_id: str
+
 
 
 async def create_new_conversation(
         request: RequestConversation = Body(...),
         session: AsyncSession = Depends(get_async_db)
 ):
-    pass
+    """
+    创建新会话
+    """
+    print(request)
     new_conv = ConversationModel(
         id = str(uuid.uuid4()),
         user_id = request.user_id,
         name = request.name,
-        chat_type = request.chat_type,
-        create_time = datetime.now()
+        chat_type = request.chat_type
     )
     try:
-
         session.add(new_conv)
         await session.commit()
-        # await session.refresh(new_conv)
+        await session.refresh(new_conv)
 
         return JSONResponse(
             status_code=200,
-            content={"status": 200, "id":new_conv.id}
+            content={
+                "status": 200, 
+                "id": str(new_conv.id),
+                "name": str(new_conv.name),
+                "chat_type": str(new_conv.chat_type),
+                "create_time": new_conv.create_time.isoformat() if new_conv.create_time else None
+            }
         )
-
-    except:
+    except Exception as e:
+        await session.rollback()
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"创建会话失败: {str(e)}")
 
 async def get_user_conversations(
         user_id: str,
@@ -82,11 +92,12 @@ async def get_user_conversations(
             return {"status": 200, "msg": "success", "data": []}
         else:
             data = [ConversationResponse(
-                id=conv.id,
-                name=conv.name,
-                chat_type=conv.chat_type,
-                create_time=conv.create_time
-            ) for conv in conversations]
+                id=str(conv.id),
+                name=str(conv.name),
+            chat_type=str(conv.chat_type),
+            create_time=conv.create_time,
+            user_id=str(conv.user_id)
+        ) for conv in conversations]
 
             return {"status": 200, "msg": "success", "data": data}
 
@@ -106,12 +117,12 @@ async def get_conversation_messages(
             return {"status_code": 200, "msg": "success", "data": []}
         data = [
             MessageResponse(
-                id=msg.id,
-                conversation_id=msg.conversation_id,
-                chat_type=msg.chat_type,
-                query=msg.query,
-                response=msg.response,
-                meta_data=msg.meta_data,
+                id=str(msg.id),
+                conversation_id=str(msg.conversation_id),
+                chat_type=str(msg.chat_type),
+                query=str(msg.query),
+                response=str(msg.response),
+                meta_data=msg.meta_data or {},
                 create_time=msg.create_time
             ) 
             for msg in messages

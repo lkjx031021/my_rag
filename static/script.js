@@ -126,15 +126,16 @@ async function handleRegister(e) {
 
 
 function checkLoginStatus() {
-    authToken = localStorage.getItem('ragToken');
+    authToken = localStorage.getItem('username');
     if (authToken) {
         // Simple check - just show app with stored username
         showApp({ username: authToken });
+        // 创建新会话
+        createNewConversation();
     } else {
         showLogin();
     }
 }
-
 function showLogin() {
     elements.loginModal.classList.add('show');
     elements.appContainer.classList.add('logged-out');
@@ -144,7 +145,8 @@ function showApp(user) {
     elements.loginModal.classList.remove('show');
     elements.appContainer.classList.remove('logged-out');
     elements.logoutBtn.style.display = 'flex';
-    elements.currentUser.textContent = user.username;
+    elements.currentUser.textContent = user.username; // 显示用户名
+    elements.currentUser.userId = user.userId; // 存储用户ID
     loadChatHistory();
 }
 
@@ -167,8 +169,11 @@ async function handleLogin(e) {
         
         if (response.ok) {
             authToken = data.username; // Using username as simple auth token
-            localStorage.setItem('ragToken', authToken);
-            showApp({ username: data.username });
+            localStorage.setItem('username', data.username);
+            localStorage.setItem('userid', data.id);
+            showApp({ username: data.username , userId: data.user_id }); // 显示用户ID
+            // 创建新会话
+            createNewConversation();
         } else {
             elements.loginError.textContent = data.message || '用户名或密码错误';
         }
@@ -179,14 +184,14 @@ async function handleLogin(e) {
 
 function handleLogout() {
     authToken = null;
-    localStorage.removeItem('ragToken');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userid');
     elements.logoutBtn.style.display = 'none';
     elements.currentUser.textContent = '';
     chatHistory = [];
     updateChatHistoryUI();
     showLogin();
 }
-
 // --- API 请求封装 ---
 
 async function fetchWithAuth(url, options = {}) {
@@ -566,24 +571,56 @@ function toggleSidebar() {
 
 // 开始新对话
 function startNewChat() {
-    elements.chatMessages.innerHTML = `
-        <div class="message assistant-message">
-            <div class="message-avatar"><i class="fas fa-robot"></i></div>
-            <div class="message-content">
-                <div class="message-text">
-                    <p>👋 你好！我是RAG智能问答系统。请开始提问吧！</p>
+    createNewConversation();
+}
+
+// 创建新会话
+function createNewConversation() {
+    const userId = localStorage.getItem('userid'); // 使用存储的user_id
+
+    fetchWithAuth('/api/new_conversation', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+            user_id: userId,  // 使用user_id而不是authToken
+            name: 'New Chat',
+            chat_type: 'text'
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('创建会话失败');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('创建新会话成功:', data);
+        currentChatId = data.id;
+        updateChatHistoryUI();
+        
+        // 显示初始消息
+        elements.chatMessages.innerHTML = `
+            <div class="message assistant-message">
+                <div class="message-avatar"><i class="fas fa-robot"></i></div>
+                <div class="message-content">
+                    <div class="message-text">
+                        <p>👋 你好！我是RAG智能问答系统。请开始提问吧！</p>
+                    </div>
+                    <div class="message-time">现在</div>
                 </div>
-                <div class="message-time">现在</div>
             </div>
-        </div>
-    `;
-    
-    currentChatId = null;
-    updateChatHistoryUI();
-    
-    if (window.innerWidth <= 768) {
-        elements.sidebar.classList.remove('show');
-    }
+        `;
+        
+        if (window.innerWidth <= 768) {
+            elements.sidebar.classList.remove('show');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        addErrorMessage('创建会话时出现错误，请重试。');
+    });
 }
 
 // 保存到聊天历史

@@ -540,10 +540,26 @@ window.toggleSidebar = toggleSidebar;
 // 页面加载完成后初始化
 document.addEventListener('DOMContentLoaded', () => {
     // 获取当前用户ID（假设已登录）
-    authToken = localStorage.getItem('ragToken');
-    
+    authToken = localStorage.getItem('userId');
+
     // 初始化会话功能
     initConversation();
+    
+    // 如果没有认证令牌，直接返回
+    if (!authToken) return;
+    
+    // 如果没有当前聊天ID，获取用户对话列表
+    if (!currentChatId) {
+        loadUserConversations();
+    } else {
+        // 如果已有聊天ID，加载该聊天
+        loadChat(currentChatId);
+    }
+    
+    // 创建新会话按钮点击事件
+    conversationElements.newChatBtn.addEventListener('click', () => {
+        startNewChat();
+    });
 });
 
 // 窗口大小改变时处理响应式

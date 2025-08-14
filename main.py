@@ -50,58 +50,6 @@ class ChatResponse(BaseModel):
     sources: List[Dict[str, Any]] = []
     timestamp: str
 
-# 模拟RAG系统
-class RAGSystem:
-    def __init__(self):
-        self.knowledge_base = {
-            "FastAPI": "FastAPI是一个现代、快速（高性能）的Web框架，用于基于Python 3.7+构建API，基于标准Python类型提示。",
-            "RAG": "RAG（Retrieval-Augmented Generation）是一种结合检索和生成的AI技术，通过检索相关文档来增强语言模型的回答能力。",
-            "Python": "Python是一种高级编程语言，以其简洁的语法和强大的库生态系统而闻名。",
-            "机器学习": "机器学习是人工智能的一个分支，使计算机能够在没有明确编程的情况下学习和改进。",
-            "深度学习": "深度学习是机器学习的一个子集，使用多层神经网络来模拟人脑的学习过程。"
-        }
-    
-    async def search_knowledge_base(self, query: str) -> List[Dict[str, Any]]:
-        """搜索知识库"""
-        query_lower = query.lower()
-        results = []
-        
-        for key, content in self.knowledge_base.items():
-            if query_lower in key.lower() or query_lower in content.lower():
-                results.append({
-                    "title": key,
-                    "content": content,
-                    "relevance_score": 0.9
-                })
-        
-        return results[:3]  # 返回前3个最相关的结果
-    
-    async def generate_response(self, query: str, context: List[Dict[str, Any]]) -> str:
-        """生成回答"""
-        if not context:
-            return f"抱歉，我在知识库中没有找到关于'{query}'的相关信息。请尝试其他问题。"
-        
-        context_text = "\n".join([f"- {item['title']}: {item['content']}" for item in context])
-        
-        response = f"""基于我的知识库，我找到了以下相关信息：
-
-{context_text}
-
-根据这些信息，我可以回答您的问题：{query}
-
-如果您需要更详细的信息或有其他问题，请随时告诉我。"""
-        
-        return response
-
-    async def get_conversation_history(self, conversation_id: str) -> List[Dict[str, Any]]:
-        """获取会话历史记录"""
-        # 这里可以实现从数据库获取会话历史的逻辑
-        conversation_messages = await get_conversation_messages(conversation_id)
-        return conversation_messages.get("data", [])
-
-# 初始化RAG系统
-rag_system = RAGSystem()
-
 from fastapi.responses import HTMLResponse
 
 from langchain_deepseek import ChatDeepSeek
@@ -167,14 +115,14 @@ async def chat_stream(query: ChatRequest):
                 """
             )
             
-            chain = LLMChain(prompt=prompt, llm=model)
+            chain = prompt | model
 
             task = asyncio.create_task(wrap_done(
                 chain.ainvoke({"question": query.message}), 
                 callback.done))
             async for token in callback.aiter():
-                print(token)
-                print("--------------------------------")
+                # print(token)
+                # print("--------------------------------")
                 # 包装成SSE格式的JSON数据
                 yield json.dumps(
                     {"text": token,}, ensure_ascii=False)
@@ -192,11 +140,6 @@ async def chat_stream(query: ChatRequest):
     
     return EventSourceResponse(generate_stream())
 
-@app.get("/api/conversations")
-async def get_conversations(user_id: str, chat_type: str):
-    """获取用户对话列表"""
-    conversations = await get_user_conversations(user_id, chat_type)
-    return conversations
 
 @app.get("/api/conversations/messages")
 async def get_conversation_messages_api(conversation_id: str):
@@ -229,6 +172,23 @@ async def health_check():
 async def test_route(item: str):
     """测试路由"""
     return {"message": "Hello World", "a": item}
+
+    
+app.post("/api/new_conversation",
+        tags=["conversations"],
+        summary="创建新会话",
+        status_code=201,
+        )(create_new_conversation)
+
+app.get("/api/conversations",
+        tags=["conversations"],
+        summary="获取用户会话列表",
+        )(get_user_conversations)
+
+app.get("/api/conversations/messages",
+        tags=["conversation_messages"],
+        summary="获取用户问答记录",
+        )(get_conversation_messages)
 
 # 用户注册
 app.post("/api/users/register",
