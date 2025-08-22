@@ -43,7 +43,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    conversation_id: str
+    conversation_id: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -80,16 +80,16 @@ async def wrap_done(fn: Awaitable, event: asyncio.Event):
 class ConversationCallbackHandler(BaseCallbackHandler):
     """Callback handler for streaming LLM responses."""
 
-    def __init__(self, message_id):
+    def __init__(self, message_id=None):
         self.message_id = message_id
 
     def on_llm_new_token(self, token: str, **kwargs) -> None:
         print(token, end='', flush=True)
 
-    async def on_llm_end(self, response, **kwargs) -> None:
+    def on_llm_end(self, response, **kwargs) -> None:
         print(type(response))
         res = response.generations[0][0].text
-        await update_message(self.message_id, res)
+        # await update_message(self.message_id, res)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -102,15 +102,16 @@ async def read_root():
 async def chat_stream(query: ChatRequest):
     """流式聊天接口"""
     
+    print('====' * 50)
     print(query, query.message)
     async def generate_stream():
         try:
             
             # 构造一个新的Message_ID记录
-            message_id = await add_message_to_db(query=query.message,
-                                             conversation_id=conversation_id,
-                                             prompt_name=prompt_name
-                                             )
+            # message_id = await add_message_to_db(query=query.message,
+            #                                  conversation_id=conversation_id,
+            #                                  prompt_name=prompt_name
+            #                                  )
             callback = AsyncIteratorCallbackHandler()
             model = ChatDeepSeek(model="deepseek-chat", callbacks=[callback, ConversationCallbackHandler()], streaming=True)
 

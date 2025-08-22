@@ -44,6 +44,7 @@ async def create_new_conversation(
     """
     创建新会话
     """
+    print(request, '---------------')
     new_conv = ConversationModel(
         id = str(uuid.uuid4()),
         user_id = request.user_id,

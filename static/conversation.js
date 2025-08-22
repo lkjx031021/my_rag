@@ -193,6 +193,11 @@ async function sendMessage() {
     const message = conversationElements.messageInput.value.trim();
     if (!message || isStreaming) return;
 
+    // 如果没有当前对话ID，先创建新对话
+    if (!currentChatId) {
+        await startNewChat();
+    }
+
     // 添加用户消息到UI
     addMessageToUI('user', message);
     
@@ -211,8 +216,8 @@ async function sendMessage() {
         // 发送请求并获取流式响应
         await streamResponse(message, assistantMessageId);
         
-        // 保存到聊天历史
-        saveToChatHistory(message, assistantMessageId); 
+        // // 保存到聊天历史
+        // saveToChatHistory(message, assistantMessageId); 
     } catch (error) {
         console.error('发送消息失败:', error);
         if (error.message !== 'Unauthorized') {
@@ -233,7 +238,10 @@ async function streamResponse(message, messageId) {
         const response = await fetchWithAuth('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify({ 
+                message: message,
+                conversation_id: currentChatId
+            })
         });
 
         if (!response.ok) {

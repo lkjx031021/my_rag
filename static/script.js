@@ -273,6 +273,11 @@ async function sendMessage() {
     const message = elements.messageInput.value.trim();
     if (!message || isStreaming) return;
 
+    // 如果没有当前对话ID，先创建新对话
+    if (!currentChatId) {
+        await createNewConversation();
+    }
+
     addMessageToUI('user', message);
     
     elements.messageInput.value = '';
@@ -284,7 +289,7 @@ async function sendMessage() {
     try {
         const assistantMessageId = addMessageToUI('assistant', '');
         await streamResponse(message, assistantMessageId);
-        saveToChatHistory(message, assistantMessageId); // Assuming assistantMessageId is not needed here, but the function signature implies it. 
+        saveToChatHistory(message, assistantMessageId);
         
     } catch (error) {
         console.error('发送消息失败:', error);
@@ -303,7 +308,10 @@ async function streamResponse(message, messageId) {
         const response = await fetchWithAuth('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify({ 
+                message: message,
+                conversation_id: currentChatId
+            })
         });
 
         if (!response.ok) {
