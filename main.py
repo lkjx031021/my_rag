@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from matplotlib.pyplot import hist
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import asyncio
@@ -14,6 +15,7 @@ from regex import T
 from routers.user_repository import register_user, login_user
 from routers.message_repository import add_message_to_db, filter_message, get_message_by_id, update_message
 from repository.conversation import create_new_conversation, get_user_conversations, get_conversation_messages
+from langchain_core.runnables.history import RunnableWithMessageHistory
 
 from sse_starlette.sse import EventSourceResponse
 
@@ -60,6 +62,42 @@ import asyncio
 from langchain.chains.llm import LLMChain
 from typing import Awaitable
 from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.chat_history import BaseChatMessageHistory
+
+from operator import itemgetter
+
+from langchain_openai.chat_models import ChatOpenAI
+
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.documents import Document
+from langchain_core.messages import BaseMessage, AIMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from pydantic import BaseModel, Field
+from langchain_core.runnables import (
+    RunnableLambda,
+    ConfigurableFieldSpec,
+    RunnablePassthrough,
+)
+from langchain_core.runnables.history import RunnableWithMessageHistory
+
+class InMemoryHistory(BaseChatMessageHistory, BaseModel):
+    """In memory implementation of chat message history."""
+
+    messages: list[BaseMessage] = Field(default_factory=list)
+
+    def add_messages(self, messages: list[BaseMessage]) -> None:
+        """Add a list of messages to the store"""
+        self.messages.extend(messages)
+
+    def clear(self) -> None:
+        self.messages = []
+
+store = {}
+
+def get_by_session_id(session_id: str) -> BaseChatMessageHistory:
+    if session_id not in store:
+        store[session_id] = InMemoryHistory()
+    return store[session_id]
 
 async def wrap_done(fn: Awaitable, event: asyncio.Event):
     """Wrap an awaitable with a event to signal when it's done or an exception is raised."""
@@ -86,10 +124,10 @@ class ConversationCallbackHandler(BaseCallbackHandler):
     def on_llm_new_token(self, token: str, **kwargs) -> None:
         print(token, end='', flush=True)
 
-    def on_llm_end(self, response, **kwargs) -> None:
+    async def on_llm_end(self, response, **kwargs) -> None:
         print(type(response))
         res = response.generations[0][0].text
-        # await update_message(self.message_id, res)
+        await update_message(self.message_id, res)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -108,24 +146,46 @@ async def chat_stream(query: ChatRequest):
         try:
             
             # 构造一个新的Message_ID记录
-            # message_id = await add_message_to_db(query=query.message,
-            #                                  conversation_id=conversation_id,
-            #                                  prompt_name=prompt_name
-            #                                  )
+            message_id = await add_message_to_db(query=query.message,
+                                             conversation_id=query.conversation_id,
+                                             prompt_name='New Chat'
+                                             )
             callback = AsyncIteratorCallbackHandler()
-            model = ChatDeepSeek(model="deepseek-chat", callbacks=[callback, ConversationCallbackHandler()], streaming=True)
+            model = ChatDeepSeek(model="deepseek-chat", callbacks=[callback, ConversationCallbackHandler(message_id=message_id)], streaming=True)
 
             prompt = PromptTemplate.from_template(
                 """
-                你是一个有用的助手。请回答以下问题：
-                {question}
+            你可以根据用户之前的对话和提出的当前问题，提供专业和详细的技术答案。\n\n
+            角色：AI技术顾问\n
+            目标：能够结合历史聊天记录，提供专业、准确、详细的AI技术术语解释，增强回答的相关性和个性化。\n
+            输出格式：详细的文本解释，包括技术定义、原理和应用案例。\n
+            工作流程：\n
+              2. 分析用户当前问题：提取关键信息。\n
+              3. 如果存在历史聊天记录，请结合历史聊天记录和当前问题提供个性化的技术回答。\n
+              4. 如果问题与AI技术无关，以正常方式回应。\n\n
+            历史聊天记录:\n
+            {history}\n
+            当前问题：\n
+            {input}\n
                 """
             )
+            messages = await filter_message(conversation_id=query.conversation_id, limit=10, chat_type="New Chat")
+            print(messages)
+
+            history = []
+            for m in messages:
+                history.append(f"user:{m.query} \n AI:{m.response}")
             
             chain = prompt | model
+            # chat_with_history = RunnableWithMessageHistory(
+            #     chain,
+            #     get_session_history = get_by_session_id,
+            #     history_messages_key="history",
+            #     input_messages_key='input',
+            # )
 
             task = asyncio.create_task(wrap_done(
-                chain.ainvoke({"question": query.message}), 
+                chain.ainvoke({"input": query.message, "history": history}), 
                 callback.done))
             async for token in callback.aiter():
                 # print(token)
