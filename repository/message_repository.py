@@ -12,7 +12,7 @@ from sqlalchemy.future import select
 async def add_message_to_db(session,
                             query: str,
                             conversation_id: str,
-                            prompt_name: str = "default",
+                            prompt_name: str,
                             response="",
                             metadata: Dict={},
                             message_id=None,
@@ -38,7 +38,7 @@ async def add_message_to_db(session,
     # 创建MessageModel实例
     m = MessageModel(id=message_id,
                      conversation_id=conversation_id,
-                    #  chat_type=prompt_name,
+                     chat_type=prompt_name,
                      query=query,
                      response=response,
                      metadata=metadata
@@ -59,7 +59,7 @@ async def filter_message(session, conversation_id: str, chat_type: str, limit: i
     """
     result = await session.execute(
         select(MessageModel)
-        .filter_by(conversation_id=conversation_id)
+        .filter_by(conversation_id=conversation_id, chat_type=chat_type)
         .filter(MessageModel.response != '')
         .order_by(MessageModel.create_time.desc())
         .limit(limit)
