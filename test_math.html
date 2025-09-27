@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数学公式测试</title>
+    <!-- MathJax -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'],
+                ignoreHtmlClass: 'tex2jax_ignore',
+                processHtmlClass: 'tex2jax_process'
+            }
+        };
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .math-block {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>数学公式显示测试</h1>
+    
+    <div class="test-section">
+        <h2>1. 内联公式测试</h2>
+        <p>爱因斯坦的质能方程: $E = mc^2$ 是一个著名的物理公式。</p>
+        <p>二次方程的解: $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$</p>
+        <p>欧拉公式: $e^{i\pi} + 1 = 0$</p>
+    </div>
+
+    <div class="test-section">
+        <h2>2. 块级公式测试</h2>
+        <div class="math-block">
+            高斯积分公式:
+            $$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$
+        </div>
+        <div class="math-block">
+            傅里叶变换:
+            $$\mathcal{F}\{f(t)\} = \int_{-\infty}^{\infty} f(t) e^{-i\omega t} dt$$
+        </div>
+        <div class="math-block">
+            麦克斯韦方程组:
+            $$\begin{aligned}
+            \nabla \cdot \mathbf{E} &= \frac{\rho}{\varepsilon_0} \\
+            \nabla \cdot \mathbf{B} &= 0 \\
+            \nabla \times \mathbf{E} &= -\frac{\partial \mathbf{B}}{\partial t} \\
+            \nabla \times \mathbf{B} &= \mu_0\left(\mathbf{J} + \varepsilon_0 \frac{\partial \mathbf{E}}{\partial t}\right)
+            \end{aligned}$$
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. 复杂公式测试</h2>
+        <div class="math-block">
+            薛定谔方程:
+            $$i\hbar\frac{\partial}{\partial t}\Psi(\mathbf{r},t) = \left[ -\frac{\hbar^2}{2m}\nabla^2 + V(\mathbf{r},t) \right]\Psi(\mathbf{r},t)$$
+        </div>
+        <div class="math-block">
+            黎曼ζ函数:
+            $$\zeta(s) = \sum_{n=1}^{\infty} \frac{1}{n^s} = \prod_{p \text{ prime}} \frac{1}{1 - p^{-s}}$$
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. 混合内容测试</h2>
+        <p>这是一个包含数学公式的段落。内联公式如 $a^2 + b^2 = c^2$ 应该正确显示。</p>
+        <p>下面是块级公式:</p>
+        <div class="math-block">
+            $$\frac{\partial f}{\partial x} = \lim_{h \to 0} \frac{f(x+h) - f(x)}{h}$$
+        </div>
+        <p>以及另一个内联公式: $\sum_{i=1}^n i = \frac{n(n+1)}{2}$</p>
+    </div>
+
+    <script>
+        // 测试正则表达式
+        function testMathRegex() {
+            const mathRegex = /(\$\$[\s\S]+?\$\$|\$(?!\s)[^$\n]*(?<!\s)\$(?!\w))/g;
+            
+            const testCases = [
+                '$E = mc^2$',
+                '$$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$',
+                '方程 $x^2 + y^2 = r^2$ 表示圆',
+                '$$\begin{aligned}a &= b \\ c &= d\end{aligned}$$',
+                '$a^2 + b^2 = c^2$ 和 $e^{i\pi} + 1 = 0$'
+            ];
+            
+            console.log('正则表达式测试结果:');
+            testCases.forEach((test, index) => {
+                const matches = test.match(mathRegex);
+                console.log(`测试 ${index + 1}: "${test}" ->`, matches);
+            });
+        }
+        
+        // 页面加载完成后运行测试
+        document.addEventListener('DOMContentLoaded', testMathRegex);
+    </script>
+</body>
+</html>
