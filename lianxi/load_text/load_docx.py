@@ -70,3 +70,4 @@ if __name__ == '__main__':
         print(doc)
         print(score)
         print('--------------------------------------------------')
+    print(all_splits[0])
