@@ -7,16 +7,18 @@ from langchain_community.vectorstores import FAISS
 from langchain.schema import Document as LangchainDocument
 import os
 
-from load_text.file_parse.file_parse import parse_file_with_unstructured
+from lianxi.load_text.file_parse.file_parse import parse_file_with_unstructured
 
 # 新增向量化功能
 class TreeNode:
     """树节点类，表示投标文件的章节结构"""
-    def __init__(self, title: str, content: str = ""):
+    def __init__(self, title: str, content: str = "", level: int = 0):
         self.title = title        # 节点标题（小标题）
         self.content = content    # 节点内容（段落文本）
         self.embedding = None     # 节点向量表示
+        self.level = level
         self.children: List['TreeNode'] = []  # 子节点列表
+        self.parent: TreeNode | None = None # 父节点
         self.doc_id = str(uuid.uuid4())  # 为FAISS向量库准备的文档ID
 
     def generate_embedding(self, embed_model: OllamaEmbeddings) -> None:
@@ -36,6 +38,11 @@ class TreeNode:
 
     def __repr__(self):
         return f"TreeNode(title='{self.title}', content='{self.content[:20]}...', children={len(self.children)})"
+
+    def add_node(self, title: str, content: str = "", level : int = 0):
+        node = TreeNode(title, content, level)
+        self.children.append(node)
+        return node
 
 
 class TreeBuilder:
@@ -84,8 +91,11 @@ class TreeBuilder:
         """构建投标文件树结构"""
         current_content = []
         current_level = 0
+        for idx, ele in enumerate(self.doc["elements"]):
+            current_level = ele[""]
+            current_node = self.root.add_node(ele["title"], ele["content"], current_level)
         
-        for para in self.doc.paragraphs:
+        for para in self.doc["elements"]:
             heading_level = self._get_heading_level(para)
             
             if heading_level is not None:
