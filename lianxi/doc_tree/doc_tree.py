@@ -1,4 +1,5 @@
 import uuid  # 添加缺失的uuid导入
+import warnings
 
 from docx import Document
 from typing import List, Optional
@@ -53,6 +54,7 @@ class TreeBuilder:
         self.current_nodes = {0: self.root}  # 当前层级节点映射表
         self.embed_model = OllamaEmbeddings(model="bge-m3:latest")  # 使用的嵌入模型
         self.vector_store = self._init_vector_store()  # 初始化向量库
+        self.node_map = {}  # 用于存储节点与ID的映射
         
     def _init_vector_store(self) -> FAISS:
         """初始化FAISS向量库"""
@@ -87,13 +89,39 @@ class TreeBuilder:
                 return None
         return None
 
+    def _detech_abstrect(self, element, current_level: int):
+        """标题之前皆为摘要内容"""
+        if current_level == -1:
+            return element["text"]
+        return None
+
     def build_tree(self) -> TreeNode:
         """构建投标文件树结构"""
         current_content = []
-        current_level = 0
+        current_level = -1
+        current_node = None
         for idx, ele in enumerate(self.doc["elements"]):
-            current_level = ele[""]
-            current_node = self.root.add_node(ele["title"], ele["content"], current_level)
+            if ele["category"] == "PageBreak":
+                continue
+            if zhaiyao := self._detech_abstrect(ele, current_level):
+                self.root.content += zhaiyao + "\n"
+                continue
+            if ele["category"] == "Title":
+                if current_level != ele["metadata"]["category_depth"]:
+                    pass
+                else:
+                    current_level = ele["metadata"]["category_depth"]
+                    current_node = current_node.parent if current_node else self.root
+                    current_node = current_node.add_node(ele["title"], ele["content"], current_level)
+                    self.node_map[ele["id"]] = current_node
+
+            else:
+                if ele["metadata"]["parent_id"]:
+                    current_node = self.node_map.get(ele["metadata"]["parent_id"])
+                    if current_node is None:
+                        warnings.warn(f"Parent ID {ele['metadata']['parent_id']} not found for element ID {ele['id']}. content: {ele['text']}. Skipping.")
+                        continue
+                    current_node.content += ele["content"] + "\n"
         
         for para in self.doc["elements"]:
             heading_level = self._get_heading_level(para)
