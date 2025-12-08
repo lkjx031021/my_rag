@@ -111,8 +111,15 @@ class TreeBuilder:
                     pass
                 else:
                     current_level = ele["metadata"]["category_depth"]
-                    current_node = current_node.parent if current_node else self.root
-                    current_node = current_node.add_node(ele["title"], ele["content"], current_level)
+                    if current_level == 0:
+                        parent_node = self.root
+                    else:
+                        if parent_node := self.node_map.get(ele["metadata"]["parent_id"]):
+                            ...
+                        else:
+                            warnings.warn(f"Parent ID {ele['metadata']['parent_id']} not found for element ID {ele['id']}. content: {ele['text']}. Skipping.")
+                            continue
+                    current_node = parent_node.add_node(ele["title"], ele["content"], current_level)
                     self.node_map[ele["id"]] = current_node
 
             else:
