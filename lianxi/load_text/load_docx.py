@@ -15,8 +15,8 @@ current_file = Path(__file__).resolve()
 current_path = current_file.parent
 kb_path = current_path / 'company_zhidu_index'
 
-# loader = Docx2txtLoader('files/顺义区数据和智慧城市底座项目建议书（代可行性研究报告）_20251110.docx')
-loader = Docx2txtLoader('files/企业报销制度.docx')
+loader = Docx2txtLoader('D:/doc/project/my_rag/lianxi/load_text/files/keyan.docx')
+# loader = Docx2txtLoader('files/企业报销制度.docx')
 
 documents = loader.load()
 
@@ -61,6 +61,9 @@ def create_new_kb():
     return vector_store
 
 if __name__ == '__main__':
+    """
+    无法加载超大word
+    """
     vs = create_new_kb()
     # vs.add_embeddings(text_embeddings = zip(text_list,embed_documents))
     # vs.save_local('company_zhidu_index')

@@ -63,5 +63,6 @@ def parse_file_with_unstructured(file_path: str):
         return {}
 
 if __name__ == "__main__":
-    analysis = parse_file_with_unstructured('D:/doc/my_project/my_rag/lianxi/load_text/files/keyan.docx')
+    # analysis = parse_file_with_unstructured('D:/doc/project/my_rag/lianxi/load_text/files/keyan.docx')
+    analysis = parse_file_with_unstructured('D:/doc/project/my_rag/lianxi/load_text/files/big_table2.docx')
     a = 1
